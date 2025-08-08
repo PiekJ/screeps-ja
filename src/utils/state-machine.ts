@@ -50,7 +50,7 @@ export class StateMachineBuilder<S, M, C> {
   addTransition<S1 extends S, S2 extends S>(
     from: S1,
     to: S2,
-    handlers: TransitionHandler<S1, S2, M> & ThisType<C>
+    handlers?: TransitionHandler<S1, S2, M> & ThisType<C>
   ): StateMachineBuilder<S, M, C> {
     this.transitions.push({ from, to, ...handlers } as Transition<S, S, M>);
     return this;
@@ -64,10 +64,8 @@ export class StateMachineBuilder<S, M, C> {
 export function runStateMachine<S, M, C>(
   config: StateMachineConfig<S, M>,
   stateMachineContext: StateMachineContext,
-  runContext: C): void {
-  const currentState = config.states.get(stateMachineContext.state as S);
-
-  currentState?.onTick?.call(runContext, stateMachineContext.memory);
+  runContext: C) {
+  let currentState = config.states.get(stateMachineContext.state as S);
 
   if (currentState?.isFinished?.call(runContext, stateMachineContext.memory) ?? true) {
     const applicableTransitions = config.transitions.filter(t => t.from === stateMachineContext.state);
@@ -78,9 +76,12 @@ export function runStateMachine<S, M, C>(
         const newStateMemory = transition.onTransition?.call(runContext, stateMachineContext.memory);
         stateMachineContext.state = transition.to as number;
         stateMachineContext.memory = newStateMemory;
-        config.states.get(transition.to)?.onEnter?.call(runContext, stateMachineContext.memory);
+        currentState = config.states.get(transition.to);
+        currentState?.onEnter?.call(runContext, stateMachineContext.memory);
         break;
       }
     }
   }
+
+  currentState?.onTick?.call(runContext, stateMachineContext.memory);
 }
